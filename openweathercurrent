@@ -7,7 +7,7 @@ struct ContentView: View {
     @State private var weatherData: WeatherData?
     @State private var weatherIcon: UIImage?
     
-    let apiKey = "6b1b71a4ab9a9d85a833343e243bc1d7"
+    let apiKey = "API KEY"
     let city = "New York"
     
     var body: some View {
