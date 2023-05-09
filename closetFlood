@@ -1,0 +1,94 @@
+//To find the closest major flooding gauge location to the given coordinates using the National Weather Service's API, you can make a request to the following URL:
+
+//https://api.weather.gov/points/{latitude},{longitude}/stations
+
+//Replace {latitude} and {longitude} with the actual coordinates. This will return a list of weather stations near the specified coordinates, with their names and distances.
+
+//To filter this list to only include major flooding gauges, you can make a request to the following URL for each station:
+
+//https://api.weather.gov/stations/{station}/observations/latest
+
+//Replace {station} with the actual station ID from the previous request. This will return the latest weather observation for that station, which includes the current flood stage.
+
+import SwiftUI
+//https://water.weather.gov/ahps/
+struct ContentView: View {
+    let latitude = 40.7143
+    let longitude = -74.006
+    
+    @State private var station: Station?
+    
+    var body: some View {
+        VStack {
+            if let station = station {
+                Text("Closest Major Flooding Gauge")
+                    .font(.title)
+                    .padding()
+                
+                Text("\(station.name) (\(station.distance) miles away)")
+                    .font(.title)
+                
+                Text("Flood Stage: \(station.floodStage) ft")
+                
+                Spacer()
+            } else {
+                Text("Loading...")
+            }
+        }
+        .onAppear {
+            findClosestMajorFloodingGauge()
+        }
+    }
+    
+    func findClosestMajorFloodingGauge() {
+        let url = URL(string: "https://api.weather.gov/points/\(latitude),\(longitude)/stations")!
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("Error fetching weather station data: \(error?.localizedDescription ?? "unknown error")")
+                return
+            }
+            do {
+                let decoder = JSONDecoder()
+                let result = try decoder.decode(StationResult.self, from: data)
+                if let station = result.stations.filter({ $0.floodStage >= 15.0 }).sorted(by: { $0.distance < $1.distance }).first {
+                    getStationObservation(stationId: station.id)
+                } else {
+                    print("No major flooding gauges found near the specified coordinates")
+                }
+            } catch let error {
+                print("Error parsing weather station data: \(error.localizedDescription)")
+            }
+        }.resume()
+    }
+    
+    func getStationObservation(stationId: String) {
+        let url = URL(string: "https://api.weather.gov/stations/\(stationId)/observations/latest")!
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("Error fetching weather observation data: \(error?.localizedDescription ?? "unknown error")")
+                return
+            }
+            do {
+                let decoder = JSONDecoder()
+                let result = try decoder.decode(ObservationResult.self, from: data)
+                DispatchQueue.main.async {
+                    self.station = Station(
+                        id: stationId,
+                        name: result.station.name,
+                        distance: result.station.distance,
+                        floodStage: result.properties.floodStage
+                    )
+                }
+                print("Station data: \(result)")
+            } catch let error {
+                print("Error parsing weather observation data: \(error.localizedDescription)")
+            }
+        }.resume()
+    }
+}
+
+struct Station {
+    let id: String
+    let name: String
+    let distance: Double
+    let flood
