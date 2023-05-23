@@ -1,0 +1,199 @@
+import SwiftUI
+import SDWebImageSwiftUI
+
+struct ContentView: View {
+    
+    //@State private var weatherData = WeatherData(temperature: 0, description: "", icon: "")
+    @State private var weatherData: WeatherData?
+    @State private var weatherIcon: UIImage?
+    
+    let apiKey = "6b3390fa0de8883b96e2a1eea4433281"
+    let city = "East Hampton"
+    let latitude = "40.9695"
+    let longtitude = "-72.2418"
+    
+    var body: some View {
+        
+        VStack {
+            //alignment: .leading,
+            //spacing: 10
+            if let data = weatherData, let icon = weatherIcon {
+                Text("\(city)")
+                    .font(.title).padding()
+                Image(uiImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 100, height: 100)
+                
+                Text("\(data.temperature)°F")
+                    .font(.title)
+                
+                Text(data.description)
+                
+                Image(systemName: "thermometer.medium").bold().font(.system(size:25))
+                Text("Feels like")
+                    .bold().font(.system(size:20))
+                Text("\(data.feels_like)°F").font(.system(size: 20))
+               // Image(systemName:"thermometer.low").bold().font(.system(size:25))
+               // Text("Min temp")
+                   // .bold().font(.system(size:20))
+                //Text("\(data.temp_min)°F").font(.system(size: 20))
+                
+                
+                //Image(systemName:"thermometer.high").bold().font(.system(size:25))
+                //Text("Max temp")
+                //.bold().font(.system(size:20))
+                //Text("\(data.temp_max)°F").font(.system(size: 20))
+                
+               Image(systemName:"humidity").bold().font(.system(size:25))
+              Text("Humidity")
+                 .bold().font(.system(size:20))
+                Text("\(data.humidity)°F").font(.system(size: 20))
+               // Image(systemName:"wind").bold().font(.system(size:25))
+               // Text("Wind")
+              //  .bold().font(.system(size:20))
+               // Text("\(data.wind)°F").font(.system(size: 20))
+                
+            } else {
+                Text("Loading...")
+                    .onAppear {
+                        getWeatherData()
+                    }
+                Spacer()
+                //VStack {
+                // if let data = weatherData {
+                //   Image(systemName:"thermometer.high").bold().font(.system(size:25))
+                // Text("Max temp")
+                // .bold().font(.system(size:20))
+                //Text("\(data.temp_max)°F").font(.system(size: 20))
+                
+                // Image(systemName:"humidity").bold().font(.system(size:25))
+                //Text("Humidity")
+                // .bold().font(.system(size:20))
+                //Text("\(data.humidity)°F").font(.system(size: 20))
+                
+                // } else {
+                //  Text("Loading...")
+                
+                    .onAppear {
+                        getWeatherData()
+                        
+                    }
+                
+            }
+            
+        }
+    }
+    
+    func getWeatherData() {
+        //let urlString = "https://api.openweathermap.org/data/2.5/weather?q=\(city)&units=imperial&appid=\(apiKey)"
+        let urlString = "https://api.openweathermap.org/data/2.5/weather?lat=40.9695&lon=-72.2418&appid=6b3390fa0de8883b96e2a1eea4433281&units=imperial"
+        
+        //let urlString = "https://api.openweathermap.org/data/2.5/weather?q=new%20york&units=imperial&appid=6b3390fa0de8883b96e2a1eea4433281"
+        guard let url = URL(string: urlString) else {
+            return
+        }
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("Error fetching weather data: \(error?.localizedDescription ?? "unknown error")")
+                return
+            }
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Received JSON: \(jsonString)")
+            }
+            do {
+                let decoder = JSONDecoder()
+                let result = try decoder.decode(WeatherResult.self, from: data)
+                DispatchQueue.main.async {
+                    self.weatherData = WeatherData(
+                        temperature: Int(result.main.temp),
+                        feels_like:
+                            Int(result.main.feels_like),
+                        temp_min:
+                            Int(result.main.temp_min),
+                        temp_max:
+                            Int(result.main.temp_max),
+                        // pressure:
+                        //Int(result.main.pressure),
+                        humidity:
+                            Int(result.main.humidity),
+                        //visibility:
+                        // Int(result.main.visibility),
+                      //  wind:
+                       // Int(result.main.wind),
+                        description: result.weather.first?.description ?? "",
+                        icon: result.weather.first?.icon ?? ""
+                        
+                    )
+                    if let iconCode = result.weather.first?.icon {
+                        downloadWeatherIcon(iconCode: iconCode)
+                    }
+                }
+                print("Weather data: \(result)")
+            } catch let error {
+                print("Error parsing weather data: \(error.localizedDescription)")
+            }
+        }.resume()
+    }
+    
+    func downloadWeatherIcon(iconCode: String) {
+        let urlString = "https://openweathermap.org/img/wn/\(iconCode).png"
+        guard let url = URL(string: urlString) else {
+            return
+        }
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("Error downloading weather icon: \(error?.localizedDescription ?? "unknown error")")
+                return
+            }
+            if let icon = UIImage(data: data) {
+                DispatchQueue.main.async {
+                    self.weatherIcon = icon
+                }
+            }
+        }.resume()
+    }
+    
+    
+    struct WeatherData {
+        let temperature: Int
+        let feels_like: Int
+        let temp_min: Int
+        let temp_max: Int
+        //let pressure: Int
+        let humidity: Int
+        // let visibility: Int
+       // let wind: Int
+        let description: String
+        let icon: String
+        
+    }
+    
+    struct WeatherResult: Codable {
+        let main: Main
+        let weather: [Weather]
+    }
+    
+    struct Main: Codable {
+        let temp: Double
+        let feels_like: Double
+        let temp_min: Double
+        let temp_max: Double
+        //let pressure: Double
+        let humidity: Double
+        //let visibility: Double
+       // let wind: Double
+    }
+    
+    struct Weather: Codable {
+        let description: String
+        let icon: String
+    }
+    
+    struct ContentView_Previews: PreviewProvider {
+        static var previews: some View {
+            ContentView()
+        }
+    }
+    
+}
